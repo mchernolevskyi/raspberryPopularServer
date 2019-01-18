@@ -1,0 +1,68 @@
+version: '3.1'
+
+services:
+
+  ejabberd:
+    image: tommyziegler/rpi-ejabberd:latest
+    restart: always
+    ports:
+      - 5222:5222
+      - 5269:5269
+      - 5280:5280
+    environment:
+      - ERLANG_NODE=ejabberd@localhost
+      - XMPP_DOMAIN=example.org
+      - EJABBERD_ADMIN=admin@example.org
+    volumes:
+      - ./ejabberd_data/ssl:/opt/ejabberd/ejabberd-15.03/ssl
+      - ./ejabberd_data/upload:/opt/ejabberd/ejabberd-15.03/upload
+      - ./ejabberd_data/database:/opt/ejabberd/ejabberd-15.03/database
+      - ./ejabberd_data/logs:/opt/ejabberd/ejabberd-15.03/logs
+
+  wordpress:
+    image: wordpress:latest
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      WORDPRESS_DB_HOST: wordpress_db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: 87654321
+      WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_HOME', 'http://example.org:8080' );
+        define( 'WP_SITEURL', 'http://example.org:8080' );
+    volumes:
+      - ./wordpress.php.conf.uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - ./wordpress_data:/var/www/html
+    depends_on:
+      - wordpress_db
+
+  wordpress_db:
+    image: hypriot/rpi-mysql:5.5
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 87654321
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: 87654321
+    volumes:
+      - ./wordpress_db_data:/var/lib/mysql
+
+  photoTrivia:
+    image: makswinner/phototrivia:1.0-SNAPSHOT
+    restart: always
+    ports:
+      - 8888:8888
+    volumes:
+      - /mnt/photos:/photos
+
+  #openvpn:
+  #   cap_add:
+  #    - NET_ADMIN
+  #   image: kylemanna/openvpn
+  #   container_name: openvpn
+  #   ports:
+  #    - 1194:1194/udp
+  #   restart: always
+  #   volumes:
+  #    - ./openvpn_data/conf:/etc/openvpn
