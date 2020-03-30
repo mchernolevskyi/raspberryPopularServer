@@ -1,9 +1,10 @@
-version: '3.1'
+version: '3.3'
 
 services:
 
   ejabberd:
-    image: tommyziegler/rpi-ejabberd:latest
+    container_name: ejabberd
+    image: tommyziegler/rpi-ejabberd:v0.1
     restart: always
     ports:
       - 5222:5222
@@ -11,26 +12,28 @@ services:
       - 5280:5280
     environment:
       - ERLANG_NODE=ejabberd@localhost
-      - XMPP_DOMAIN=example.org
-      - EJABBERD_ADMIN=admin@example.org
+      - XMPP_DOMAIN=example.com
+      - EJABBERD_ADMIN=admin@example.com
     volumes:
       - ./ejabberd_data/ssl:/opt/ejabberd/ejabberd-15.03/ssl
       - ./ejabberd_data/upload:/opt/ejabberd/ejabberd-15.03/upload
       - ./ejabberd_data/database:/opt/ejabberd/ejabberd-15.03/database
       - ./ejabberd_data/logs:/opt/ejabberd/ejabberd-15.03/logs
+      - ./ejabberd_data/conf:/opt/ejabberd/ejabberd-15.03/conf
 
   wordpress:
-    image: wordpress:latest
+    container_name: wordpress
+    image: wordpress:5.2.2-php7.3
     restart: always
     ports:
-      - 8080:80
+      - 9999:80
     environment:
       WORDPRESS_DB_HOST: wordpress_db:3306
       WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: 87654321
+      WORDPRESS_DB_PASSWORD: db_password
       WORDPRESS_CONFIG_EXTRA: |
-        define( 'WP_HOME', 'http://example.org:8080' );
-        define( 'WP_SITEURL', 'http://example.org:8080' );
+        define( 'WP_HOME', 'http://' . $_SERVER['HTTP_HOST'] );
+        define( 'WP_SITEURL', 'http://' . $_SERVER['HTTP_HOST'] );
     volumes:
       - ./wordpress.php.conf.uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
       - ./wordpress_data:/var/www/html
@@ -38,31 +41,110 @@ services:
       - wordpress_db
 
   wordpress_db:
+    container_name: wordpress_db
     image: hypriot/rpi-mysql:5.5
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 87654321
+      MYSQL_ROOT_PASSWORD: db_password
       MYSQL_DATABASE: wordpress
       MYSQL_USER: wordpress
-      MYSQL_PASSWORD: 87654321
+      MYSQL_PASSWORD: db_password
     volumes:
       - ./wordpress_db_data:/var/lib/mysql
 
   photoTrivia:
-    image: makswinner/phototrivia:1.0-SNAPSHOT
+    container_name: phototrivia
+    image: makswinner/phototrivia:1.1-SNAPSHOT
     restart: always
     ports:
       - 8888:8888
     volumes:
-      - /mnt/photos:/photos
+      - /mnt/my_photos:/photos
+      - ./photos.application.properties:/application.properties
 
-  #openvpn:
-  #   cap_add:
-  #    - NET_ADMIN
-  #   image: kylemanna/openvpn
-  #   container_name: openvpn
-  #   ports:
-  #    - 1194:1194/udp
-  #   restart: always
-  #   volumes:
-  #    - ./openvpn_data/conf:/etc/openvpn
+  freepbx:
+    #build: .
+    container_name: freepbx
+    image: epandi/asterisk-freepbx-rpi:15
+    ports:
+      - 11080:80
+      - 5060:5060
+      - 5060:5060/udp
+      - 5160:5160
+      - 5160:5160/udp
+      - 10000-10020:10000-10020/udp
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./asterisk_data/conf:/etc/asterisk
+      - ./asterisk_data/var_lib_asterisk:/var/lib/asterisk
+      - ./asterisk_data/mysql:/var/lib/mysql
+      - ./asterisk_data/var_spool:/var/spool/asterisk
+      - ./asterisk_data/msmtprc:/etc/msmtprc
+      - ./asterisk_data/ssl:/etc/ssl
+      - ./asterisk_data/amportal.conf:/etc/amportal.conf
+      - ./asterisk_data/logs:/var/log
+      # uncomment below to be able to translate to/from opus,
+      # copy over a codec binary file from freepbx linux distro for your architecture
+      #- ./asterisk_data/codec_opus_open_source.so:/usr/lib/asterisk/modules/codec_opus_open_source.so
+    environment:
+      - TZ=Europe/Helsinki
+    restart: always
+    
+  trilium:
+    container_name: trilium
+    image: hlince/trilium:0.37.8-stable-arm
+    restart: always
+    ports:
+      - 11111:8080
+    environment:
+      - TRILIUM_DATA_DIR=/data
+    volumes:
+      - ./trilium_data:/data
+
+  selfoss:
+    container_name: selfoss
+    image: hardware/selfoss-2.18
+    restart: always
+    ports:
+      - 5555:8888
+    volumes:
+      - ./selfoss_data:/selfoss/data
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:4.3.2-1
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - 53:53
+      - 53:53/udp
+      #- 67:67/udp
+      - 20080:80
+      - 20443:443
+    environment:
+      TZ: 'America/Chicago'
+    volumes:
+       - ./pi-hole_data/etc-pihole/:/etc/pihole/
+       - ./pi-hole_data/etc-dnsmasq.d/:/etc/dnsmasq.d/
+       - ./pihole_index.php:/var/www/html/pihole/index.php
+    # run `touch ./var-log/pihole.log` first unless you like errors
+    # - './var-log/pihole.log:/var/log/pihole.log'
+    dns:
+      - 127.0.0.1
+      - 1.1.1.1
+    # Recommended but not required (DHCP needs NET_ADMIN)
+    #   https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+    cap_add:
+      - NET_ADMIN
+    restart: always
+        
+  openvpn:
+    container_name: openvpn
+    image: giggio/openvpn-arm:latest
+    restart: always
+    ports:
+      - 1194:1194/udp
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./openvpn_data:/etc/openvpn
