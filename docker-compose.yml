@@ -54,7 +54,7 @@ services:
 
   photoTrivia:
     container_name: phototrivia
-    image: makswinner/phototrivia:1.1-SNAPSHOT
+    image: makswinner/phototrivia:1.2-SNAPSHOT
     restart: always
     ports:
       - 8888:8888
